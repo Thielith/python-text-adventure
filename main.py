@@ -1,5 +1,5 @@
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from pynput import keyboard
+import time, os
 
 # navigation area                    | done
 #   travel                           | done
@@ -10,13 +10,6 @@
 # subareas                           |
 # random terrain feature generation  |
 # dungeon generation                 |
-
-# *** Please tell me who you are.
-# Run
-# git config --global user.email "you@example.com"
-# git config --global user.name "Your Name"
-# to set your account's default identity.
-# Omit --global to set the identity only in this repository.
 
 # library stuff. move to another file eventually
 itemTypeDict:dict = {
@@ -76,6 +69,13 @@ class KeyItem(Item):
         self.type:int = 3
         self.questID:int = questID
 
+class Map():
+    def __init__(self):
+        self.data:list[list[str]]
+        self.width:int
+        self.height:int
+        print("Its a map.")
+
 # game data
 mapInputInfo:str = "Movement (WASD) | Inventory (I)\n"
 solids:list[str] = ['T', 'R', '#']
@@ -93,17 +93,27 @@ playerChar:str = 'P'
 border:list[str] = ['═', '║', '╔', '╗', '╚', '╝']
 doubleView:bool = False
 
-playerX:int = 49
-playerY:int = 49
+playerX:int = 3
+playerY:int = 3
 playerInventory:list[int] = [0, 1, 2, 3, 4, 5]
 
+viewportWidth = 20
+viewportHeight = 5
+
+stopGame:bool = False
+curMap:Map = Map()
+inputDelay:float = 0.1
+
 def main():
+    global curMap
     w:int = 50
     h:int = 50
-    gameMap:list[list[str]] = generate_map(w, h)
+    curMap.width = w
+    curMap.height = h
+    curMap.data = generate_map(w, h)
 
-    gameMap[39][39] = 'x'
-    gameMap[49][49] = '#'
+    #gameMap[39][39] = 'x'
+    #gameMap[49][49] = '#'
 
     """
     for row in range(0, h):
@@ -111,31 +121,54 @@ def main():
             print(map[row][col], end='')
         print()
     """
+    while not stopGame:
+        viewMap(playerX, playerY)
+        print(mapInputInfo)
+        time.sleep(inputDelay)
+        handleInput()
+        os.system("clear")  # cross-platoform support:  clear --> [windows] cls
 
-    viewMap(gameMap, w, h, playerX, playerY)
+
+def handleInput():
+    with keyboard.Events() as events:
+        # Block for as much as possible
+        event = events.get(1e6)
+        if event.key == keyboard.KeyCode.from_char('q'):
+            global stopGame
+            stopGame = True
+            return
+
+        movementInputs = ['w', 'a', 's', 'd']
+
+        # map movement
+        for key in movementInputs:
+            if event.key == keyboard.KeyCode.from_char(key):
+                navigate(key)
+
+    """
     choice = input(mapInputInfo).lower()
     while choice != 'q':
         if choice in ['w', 'a', 's', 'd']:
-            navigate(choice, gameMap, w, h)
+            navigate(choice, gameMap)
 
         elif choice == 'i':
             pass
 
         choice = input(mapInputInfo).lower()
+    """
 
 # inventory menu
 def inventory():
     pass
 
 # navigation for moving around map
-def navigate(input:str, givenMap:list[list[str]], mapW:int, mapH:int):
+def navigate(input:str):
     inputToNum = {'w': 0, 'a': 1, 's': 2, 'd': 3}
     direction = inputToNum[input]
-    move_map(direction, givenMap, mapW, mapH)
-    viewMap(givenMap, mapW, mapH, playerX, playerY)
+    move_map(direction)
 
 # movement input for map
-def move_map(direction:int, givenMap:list[list[str]], mapW:int, mapH:int):
+def move_map(direction:int):
     # no switch case =(
     global playerX, playerY
     oldX:int = playerX
@@ -152,11 +185,11 @@ def move_map(direction:int, givenMap:list[list[str]], mapW:int, mapH:int):
         playerX += 1
 
     # move player within the bounds of the map if needed
-    playerX = max(min(playerX, mapW-1), 0)
-    playerY = max(min(playerY, mapH-1), 0)
+    playerX = max(min(playerX, curMap.width-1), 0)
+    playerY = max(min(playerY, curMap.height-1), 0)
 
     # check if player is on a solid.  if so, move them back
-    if givenMap[playerY][playerX] in solids:
+    if curMap.data[playerY][playerX] in solids:
         playerX = oldX
         playerY = oldY
 
@@ -174,14 +207,14 @@ def generate_map(width:int, height:int) -> list[list[str]]:
 
 # view area around you
 # x and y are the player's coordinates
-def viewMap(fill:list[list[str]], fillW:int, fillH:int, x:int, y:int, viewRadius:int = 5):
-    fillW -= 1
-    fillH -= 1
+def viewMap(x:int, y:int, viewX:int = viewportWidth, viewY:int = viewportHeight):
+    fillW:int = curMap.width - 1
+    fillH:int = curMap.height - 1
     # making sure it doesnt try to load O.o.B data
-    tlCorY:int = y - viewRadius
-    tlCorX:int = x - viewRadius
-    brCorY:int = y + viewRadius
-    brCorX:int = x + viewRadius
+    tlCorY:int = y - viewY
+    tlCorX:int = x - viewX
+    brCorY:int = y + viewY
+    brCorX:int = x + viewX
     # offsetting player icon if in corners of map
     pViewOffX:int = 0
     pViewOffY:int = 0
@@ -189,50 +222,50 @@ def viewMap(fill:list[list[str]], fillW:int, fillH:int, x:int, y:int, viewRadius
     if tlCorY < 0:
         pViewOffY = tlCorY
         tlCorY = 0
-        brCorY = viewRadius*2
+        brCorY = viewY*2
     if tlCorX < 0:
         pViewOffX = tlCorX
         tlCorX = 0
-        brCorX = viewRadius*2
+        brCorX = viewX*2
     if brCorY > fillH:
         pViewOffY = brCorY - fillH
         brCorY = fillH
-        tlCorY = fillH - viewRadius*2
+        tlCorY = fillH - viewY*2
     if brCorX > fillW:
         pViewOffX = brCorX - fillW
         brCorX = fillW
-        tlCorX = fillW - viewRadius*2
+        tlCorX = fillW - viewX*2
 
     # store data of viewable area
     view:list[list[str]] = []
 
-    for i in range(0, viewRadius*2+1):
+    for i in range(0, viewY*2+1):
         cols: list[str] = []
-        for j in range(0, viewRadius*2+1):
-            if i == viewRadius+pViewOffY and j == viewRadius+pViewOffX:
+        for j in range(0, viewX*2+1):
+            if i == viewY+pViewOffY and j == viewX+pViewOffX:
                 cols.append(playerChar)
             else:
-                cols.append(fill[tlCorY + i][tlCorX + j])
+                cols.append(curMap.data[tlCorY + i][tlCorX + j])
         view.append(cols)
 
     # top
     print(border[2], end='')
-    for i in range(0, viewRadius*2+1):
+    for i in range(0, viewX*2+1):
         print(border[0], end='')
         if doubleView: print(border[0], end='')
     print(border[3], end='\n')
 
     # middle
-    for i in range(0, viewRadius*2+1):
+    for i in range(0, viewY*2+1):
         print(border[1], end='')
-        for j in range(0, viewRadius*2+1):
+        for j in range(0, viewX*2+1):
             print(view[i][j], end='')
             if doubleView: print(view[i][j], end='')
         print(border[1], end='\n')
 
     # bottom
     print(border[4], end='')
-    for i in range(0, viewRadius*2+1):
+    for i in range(0, viewX*2+1):
         print(border[0], end='')
         if doubleView: print(border[0], end='')
     print(border[5], end='\n')
