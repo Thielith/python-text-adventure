@@ -1,9 +1,9 @@
-from pynput import keyboard
-import time, os
+import time, os, getch
+import gameItem, gameMap, gameInventory
 
 # navigation area                    | done
 #   travel                           | done
-# inventory                          |
+# inventory                          | doneish
 # combat                             |
 #   enemy movement                   |
 #   encounter checking               |
@@ -11,159 +11,162 @@ import time, os
 # random terrain feature generation  |
 # dungeon generation                 |
 
-# library stuff. move to another file eventually
-itemTypeDict:dict = {
-    0: "consumable",
-    1: "armor",
-    2: "weapon",
-    3: "keyItem",
-    4: "test"
-}
-weaponTypeDict:dict = {
-    0: "all",
-    1: "melee",
-    2: "ranged",
-    3: "magic"
-}
-elementTypeDic:dict = {
-    0: "basic",
-    1: "hot",
-    2: "cold",
-    3: "rock",
-    4: "tool",
-    5: "order",
-    6: "chaos"
-}
-
-class Item:  # don't use. use the other ones.
-    def __init__(self, name:str, ELEM:int, quality:int, desc:str):
-        self.type:int = -1
-        self.name:str = name
-        self.ELEM:int = ELEM
-        self.quality:int = quality
-        self.desc:str = desc
-class Consumable(Item):
-    def __init__(self, name:str = "Eatable?", HP:int = 0, STAM:int = 0,
-                 desc:str = "Oops! No description.", ELEM:int = 0, quality:int = 0):
-        super().__init__(name, ELEM, quality, desc)
-        self.type:int = 0
-        self.restoreHP:int = HP
-        self.restoreSTAM:int = STAM
-class Armor(Item):
-    def __init__(self, name:str = "Wearable?", DEF:int = 0, DEF_ELEM:int = 0,
-                 desc:str = "Oops! No description.", ELEM:int = 0, quality:int = 0):
-        super().__init__(name, ELEM, quality, desc)
-        self.type:int = 1
-        self.DEF:int = DEF
-        self.DEF_ELEM:int = DEF_ELEM
-class Weapon(Item):
-    def __init__(self, name:str = "Hurtable?", ATK:int = 1, ATK_ELEM:int = 0, classType:int = 0,
-                 desc:str = "Oops! No description.", ELEM:int = 0, quality:int = 0):
-        super().__init__(name, ELEM, quality, desc)
-        self.type:int = 2
-        self.ATK:int = ATK
-class KeyItem(Item):
-    def __init__(self, name:str = "Arbitrary.", questID:int = -1,
-                 desc:str = "Oops! No description.", ELEM:int = 0, quality:int = 0):
-        super().__init__(name, ELEM, quality, desc)
-        self.type:int = 3
-        self.questID:int = questID
-
-class Map():
-    def __init__(self):
-        self.data:list[list[str]]
-        self.width:int
-        self.height:int
-        print("Its a map.")
-
 # game data
-mapInputInfo:str = "Movement (WASD) | Inventory (I)\n"
-solids:list[str] = ['T', 'R', '#']
-itemDict = {
-    0: Consumable("Apple", 5, 0, "It's an apple."),
-    1: Consumable("Apple1", 5, 0, "It's also an apple."),
-    2: Armor("Shirt", 1, 0, "Shirt-ly"),
-    3: Weapon("Sharp Apple", 5, 0, 1, "It's an apple?"),
-    4: Consumable("Apple4", 5, 0, "Where'd the other two go?"),
-    5: Consumable("Apple5", 5, 0, "Replaced.")
-}
+mapInputInfo:str = "Movement (Arrows) | Inventory (I)\n"
+inventoryInputInfo:str = "Navigate (Arrows)\n"
 
 # save file stuff. not in a file cause i'm not doing that yet
 playerChar:str = 'P'
 border:list[str] = ['═', '║', '╔', '╗', '╚', '╝']
 doubleView:bool = False
+viewportWidth:int = 40
+viewportHeight:int = 10
+mapPaddingChar = ' '
 
-playerX:int = 3
-playerY:int = 3
-playerInventory:list[int] = [0, 1, 2, 3, 4, 5]
+### controls
+ctrlMapMoveUp = '\x1b[A'    # arrow up
+ctrlMapMoveDown = '\x1b[B'  # arrow down
+ctrlMapMoveLeft = '\x1b[D'  # arrow left
+ctrlMapMoveRight = '\x1b[C' # arrow right
+ctrlMapEnterInventory = 'i'
+ctrlInventoryUp = '\x1b[A'    # arrow up
+ctrlInventoryDown = '\x1b[B'  # arrow down
+ctrlInventoryUse = ' '
+ctrlInventoryExit = 'e'
 
-viewportWidth = 20
-viewportHeight = 5
+playerX:int = 1
+playerY:int = 1
+playerInventory:gameInventory.Inventory = gameInventory.Inventory(10, [0, 1, 2, 3, 4, 5])
 
 stopGame:bool = False
-curMap:Map = Map()
-inputDelay:float = 0.1
+currMap:gameMap.Map = gameMap.Map()
 
+# basic functions for basic things
+def clearScreen():
+    os.system("clear")  # cross-platoform support:  clear --> [windows] cls
+def getInput() -> str:
+    char = getch.getch()
+    if char == '\x1b':
+        return (char + getch.getch() + getch.getch())
+    return char
+def generateBorder(fill:list, fillWidth:int, fillHeight:int):
+    #top
+    print(border[2], end='')
+    for row in range(0, fillWidth):
+        print(border[0], end='')
+    print(border[3])
+
+    #middle
+    for row in range(0, fillHeight):
+        print(border[1], end='')
+        for col in range(0, fillWidth):
+            print(fill[row][col], end='')
+        print(border[1])
+
+    #bottom
+    print(border[4], end='')
+    for row in range(0, fillWidth):
+        print(border[0], end='')
+    print(border[5])
+
+# initialization
 def main():
-    global curMap
+    global currMap
     w:int = 50
     h:int = 50
-    curMap.width = w
-    curMap.height = h
-    curMap.data = generate_map(w, h)
+    p:int = 0
+    currMap.width = w + 2*p
+    currMap.height = h + 2*p
+    currMap.data = generate_map(w, h, p)
 
-    #gameMap[39][39] = 'x'
-    #gameMap[49][49] = '#'
+    currMap.data[0][0] = 'x'
+    currMap.data[0][1] = 'y'
+    currMap.data[w-1][h-1] = 'x'
 
-    """
-    for row in range(0, h):
-        for col in range(0, w):
-            print(map[row][col], end='')
-        print()
-    """
     while not stopGame:
         viewMap(playerX, playerY)
         print(mapInputInfo)
-        time.sleep(inputDelay)
         handleInput()
-        os.system("clear")  # cross-platoform support:  clear --> [windows] cls
+        clearScreen()
 
-
+# input
 def handleInput():
-    with keyboard.Events() as events:
-        # Block for as much as possible
-        event = events.get(1e6)
-        if event.key == keyboard.KeyCode.from_char('q'):
-            global stopGame
-            stopGame = True
-            return
+    input = getInput()
 
-        movementInputs = ['w', 'a', 's', 'd']
+    if input == 'q':
+        global stopGame
+        stopGame = True
+        return
 
-        # map movement
-        for key in movementInputs:
-            if event.key == keyboard.KeyCode.from_char(key):
-                navigate(key)
+    if input == 'g':
+        currMap.data[playerY][playerX] = 'o'
 
-    """
-    choice = input(mapInputInfo).lower()
-    while choice != 'q':
-        if choice in ['w', 'a', 's', 'd']:
-            navigate(choice, gameMap)
-
-        elif choice == 'i':
-            pass
-
-        choice = input(mapInputInfo).lower()
-    """
+    # map movement
+    mapMoveInputs = [ctrlMapMoveUp, ctrlMapMoveLeft, ctrlMapMoveDown, ctrlMapMoveRight]
+    for key in mapMoveInputs:
+        if input == key:
+            navigate(key)
+    # map inventory
+    if input == ctrlMapEnterInventory:
+        inventory()
 
 # inventory menu
+def generateInventoryWindow(selectedIndex:int):
+    cursorChar = '+'
+
+    # get length of item with longest name
+    longestItemNameLength:int = 0
+    for item in playerInventory.items:
+        itemName = gameItem.itemDict[item].name
+        if len(itemName) > longestItemNameLength:
+            longestItemNameLength = len(itemName)
+
+    # generate inventory window
+    invView:List[str] = []
+
+    index:int = 0
+    for item in playerInventory.items:
+        # list bullet
+        entry = " "
+        if index == selectedIndex: entry += cursorChar
+        else: entry += '-'
+        entry += " " + gameItem.itemDict[item].name
+
+        if len(entry) < longestItemNameLength:
+            for i in range(0, longestItemNameLength):
+                entry += ' '
+        entry += " | "
+        invView.append(entry)
+        index += 1
+
+    generateBorder(invView, longestItemNameLength+4, len(invView))
 def inventory():
-    pass
+    input = ''
+    index:int = 0
+    while not input == ctrlInventoryExit:
+        clearScreen()
+        viewMap(playerX, playerY)
+        generateInventoryWindow(index)
+
+        print(inventoryInputInfo)
+        input = getInput()
+
+        # navigation
+        if input == ctrlInventoryUp: index -= 1
+        elif input == ctrlInventoryDown: index += 1
+        ### OOB checking
+        if index < 0:
+            index = 0
+        elif index > len(playerInventory.items)-1:
+            index = len(playerInventory.items)-1
+
+        # item use
+        if input == ctrlInventoryUse and not len(playerInventory.items) == 0:
+            playerInventory.useItem(playerInventory.items[index])
 
 # navigation for moving around map
-def navigate(input:str):
-    inputToNum = {'w': 0, 'a': 1, 's': 2, 'd': 3}
+def navigate(input):
+    inputToNum = {ctrlMapMoveUp: 0, ctrlMapMoveLeft: 1, ctrlMapMoveDown: 2, ctrlMapMoveRight: 3}
     direction = inputToNum[input]
     move_map(direction)
 
@@ -185,92 +188,91 @@ def move_map(direction:int):
         playerX += 1
 
     # move player within the bounds of the map if needed
-    playerX = max(min(playerX, curMap.width-1), 0)
-    playerY = max(min(playerY, curMap.height-1), 0)
+    playerX = max(min(playerX, currMap.width-1), 0)
+    playerY = max(min(playerY, currMap.height-1), 0)
 
     # check if player is on a solid.  if so, move them back
-    if curMap.data[playerY][playerX] in solids:
+    if currMap.data[playerY][playerX] in gameMap.solids:
         playerX = oldX
         playerY = oldY
 
 # generate map
-def generate_map(width:int, height:int) -> list[list[str]]:
+def generate_map(width:int, height:int, padding:int = 0) -> list[list[str]]:
     rows = []
 
-    for i in range(0, height):
+    # actual area
+    for row in range(0, height):
         cols:list[str] = []
-        for j in range(0, width):
+
+        for col in range(0, width):
             cols.append('░')
         rows.append(cols)
+
+    # padding
+    if not padding == 0:
+        # middle
+        for row in range(0, height):
+            for pad in range(0, padding):
+                rows[row].insert(0, mapPaddingChar)
+                rows[row].append(mapPaddingChar)
+        # top and bottom
+        for pad in range(0, padding):
+            padRow:list[str] = []
+            for col in range(0, padding*2 + width):
+                padRow.append(mapPaddingChar)
+            rows.insert(0, padRow)
+            rows.append(padRow.copy())
 
     return rows
 
 # view area around you
-# x and y are the player's coordinates
-def viewMap(x:int, y:int, viewX:int = viewportWidth, viewY:int = viewportHeight):
-    fillW:int = curMap.width - 1
-    fillH:int = curMap.height - 1
-    # making sure it doesnt try to load O.o.B data
-    tlCorY:int = y - viewY
-    tlCorX:int = x - viewX
-    brCorY:int = y + viewY
-    brCorX:int = x + viewX
-    # offsetting player icon if in corners of map
-    pViewOffX:int = 0
-    pViewOffY:int = 0
-
-    if tlCorY < 0:
-        pViewOffY = tlCorY
-        tlCorY = 0
-        brCorY = viewY*2
-    if tlCorX < 0:
-        pViewOffX = tlCorX
-        tlCorX = 0
-        brCorX = viewX*2
-    if brCorY > fillH:
-        pViewOffY = brCorY - fillH
-        brCorY = fillH
-        tlCorY = fillH - viewY*2
-    if brCorX > fillW:
-        pViewOffX = brCorX - fillW
-        brCorX = fillW
-        tlCorX = fillW - viewX*2
-
-    # store data of viewable area
+def viewMap(x:int, y:int, viewW:int = viewportWidth, viewH:int = viewportHeight):
     view:list[list[str]] = []
+    fullViewW = viewW*2+1
+    fullViewH = viewH*2+1
+    paddingX = int((fullViewW - currMap.width)/2)+1
+    paddingY = int((fullViewH - currMap.height)/2)+1
 
-    for i in range(0, viewY*2+1):
-        cols: list[str] = []
-        for j in range(0, viewX*2+1):
-            if i == viewY+pViewOffY and j == viewX+pViewOffX:
+    # makes sure it doesnt read data OOBs
+    tlCornerX = min(max(0, x - viewW), currMap.width-fullViewW)
+    tlCornerY = min(max(0, y - viewH), currMap.height-fullViewH)
+    playerOffsetX = min(0, x - viewW)
+    playerOffsetY = min(0, y - viewH)
+
+    # generates what we can see with the viewport
+    rangeX = min(fullViewW, currMap.width)
+    rangeY = min(fullViewH, currMap.height)
+
+    for row in range(0, rangeY):
+        cols:list[str] = []
+        for col in range(0, rangeX):
+            cursorX = max(col, tlCornerX + col)
+            cursorY = max(row, tlCornerY + row)
+
+            if cursorX == x and cursorY == y:
                 cols.append(playerChar)
-            else:
-                cols.append(curMap.data[tlCorY + i][tlCorX + j])
+                continue
+
+            cols.append(currMap.data[cursorY][cursorX])
         view.append(cols)
 
-    # top
-    print(border[2], end='')
-    for i in range(0, viewX*2+1):
-        print(border[0], end='')
-        if doubleView: print(border[0], end='')
-    print(border[3], end='\n')
+    # if viewport is bigger than map, then center map and apply padding
+    if fullViewW > currMap.width:
+        for row in view:
+            for pad in range(0, paddingX):
+                row.insert(0, mapPaddingChar)
+                row.append(mapPaddingChar)
+    if fullViewH > currMap.height:
+        for pad in range(0, paddingY):
+            padRow:list[str] = []
+            for cols in range(0, fullViewW):
+                padRow.append(mapPaddingChar)
+            view.insert(0, padRow)
+            view.append(padRow.copy())
 
-    # middle
-    for i in range(0, viewY*2+1):
-        print(border[1], end='')
-        for j in range(0, viewX*2+1):
-            print(view[i][j], end='')
-            if doubleView: print(view[i][j], end='')
-        print(border[1], end='\n')
-
-    # bottom
-    print(border[4], end='')
-    for i in range(0, viewX*2+1):
-        print(border[0], end='')
-        if doubleView: print(border[0], end='')
-    print(border[5], end='\n')
-
+    generateBorder(view, fullViewW, fullViewH)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    clearScreen()
     main()
