@@ -68,6 +68,7 @@ itemDict = {
     2: Armor("Shirt", 1, 0, "Shirt-ly"),
     3: Weapon("Sharp Apple", 5, 0, 1, "It's an apple?"),
     4: Consumable("Apple4", 5, 0, "Where'd the other two go?"),
-    5: Consumable("Apple5", 5, 0, "Replaced.")
+    5: Consumable("Apple5", 5, 0, "Replaced."),
+    6: Weapon("Sharpest Apple Ever", 20, 0, 1, "It's an apple, probably. It's the best apple, even. Like, I can't believe how sharp this apple is like holy haruhi. Sharpness like this shouldn't even be possible. Wow. Amazing, even. You can't get sharpness like this with an orange."),
 }
 
