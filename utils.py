@@ -1,15 +1,24 @@
-import os, getch
+import os, sys
+
+if 'linux' in sys.platform:
+    from getch import getch
+elif 'win32' in sys.platform:
+    from msvcrt import getwch as getch
 
 border:list[str]
 
 # basic functions for basic things
 def clearScreen():
-    os.system("clear")  # cross-platoform support:  clear --> [windows] cls
+    if 'linux' in sys.platform:
+        os.system("clear")
+    elif 'win32' in sys.platform:
+        os.system("cls")
+
 
 def getInput() -> str:
-    char = getch.getch()
+    char = getch()
     if char == '\x1b':
-        return (char + getch.getch() + getch.getch())
+        return (char + getch() + getch())
     return char
 
 def generateBorder(fill:list, fillWidth:int, fillHeight:int):

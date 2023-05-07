@@ -1,5 +1,5 @@
 import time
-import utils, gameItem, gameMap, gameInventory
+import utils, controls, gameItem, gameMap, gameInventory
 
 # navigation area                    | done
 #   travel                           | done
@@ -24,18 +24,6 @@ viewportHeight:int = 10
 mapPaddingChar = ' '
 inventoryCursor = '+'
 inventorySeperator = " | "
-
-### controls
-ctrlMapMoveUp = '\x1b[A'    # arrow up
-ctrlMapMoveDown = '\x1b[B'  # arrow down
-ctrlMapMoveLeft = '\x1b[D'  # arrow left
-ctrlMapMoveRight = '\x1b[C' # arrow right
-ctrlMapEnterInventory = 'i'
-ctrlInventoryUp = '\x1b[A'    # arrow up
-ctrlInventoryDown = '\x1b[B'  # arrow down
-ctrlInventoryUse = ' '
-ctrlInventoryExit = 'e'
-ctrlInventoryScrollDesc = 'l'
 
 playerPos:list[int] = [1, 1]
 playerInventory:gameInventory.Inventory = gameInventory.Inventory(10, [5, 6])
@@ -68,6 +56,8 @@ def main():
 # input
 def handleInput():
     input = utils.getInput()
+    print(input)
+    print(controls.mapMoveDown)
 
     if input == 'q':
         global stopGame
@@ -78,31 +68,31 @@ def handleInput():
         currMap.data[playerPos[1]][playerPos[0]] = 'o'
 
     # map movement
-    mapMoveInputs = [ctrlMapMoveUp, ctrlMapMoveLeft, ctrlMapMoveDown, ctrlMapMoveRight]
+    mapMoveInputs = [controls.mapMoveUp, controls.mapMoveLeft, controls.mapMoveDown, controls.mapMoveRight]
     for key in mapMoveInputs:
         if input == key:
             navigate(key)
     # map inventory
-    if input == ctrlMapEnterInventory:
+    if input == controls.mapEnterInventory:
         playerInventory.view()
 
 # navigation for moving around map
 def navigate(input):
-    inputToNum = {ctrlMapMoveUp: 0, ctrlMapMoveLeft: 1, ctrlMapMoveDown: 2, ctrlMapMoveRight: 3}
+    inputToNum = {controls.mapMoveUp: 0, controls.mapMoveLeft: 1, controls.mapMoveDown: 2, controls.mapMoveRight: 3}
     direction = inputToNum[input]
     gameMap.move_map(currMap, direction, playerPos)
 
 def setConfig():
     utils.border = border;
-    gameInventory.ctrlUse = ctrlInventoryUse
-    gameInventory.ctrlUp = ctrlInventoryUp
-    gameInventory.ctrlDown = ctrlInventoryDown
-    gameInventory.ctrlExit = ctrlInventoryExit
+    gameInventory.ctrlUse = controls.inventoryUse
+    gameInventory.ctrlUp = controls.inventoryUp
+    gameInventory.ctrlDown = controls.inventoryDown
+    gameInventory.ctrlExit = controls.inventoryExit
     gameInventory.cursorChar = inventoryCursor
     gameInventory.info = inventoryInputInfo
     gameInventory.windowLength = viewportWidth*2+1
     gameInventory.seperator = inventorySeperator
-    gameInventory.ctrlScrollDesc = ctrlInventoryScrollDesc
+    gameInventory.ctrlScrollDesc = controls.inventoryScrollDesc
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
